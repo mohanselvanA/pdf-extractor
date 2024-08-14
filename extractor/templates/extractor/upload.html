@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload PDF</title>
+</head>
+<body>
+    <h1>Upload PDF to Extract Encounter Data</h1>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        {{ form.as_p }}
+        <button type="submit">Upload</button>
+    </form>
+    
+    {% if encounter_data %}
+        <h2>Extracted Data</h2>
+        {% for data in encounter_data %}
+            <p>Encounter Date: {{ data.encounter_date }}, Page: {{ data.page }}</p>
+            <ul>
+                {% for diagnosis in data.diagnoses %}
+                    <li>{{ diagnosis }}</li>
+                {% endfor %}
+            </ul>
+        {% endfor %}
+    {% endif %}
+</body>
+</html>
