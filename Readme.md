@@ -34,3 +34,11 @@ Follow these steps to set up and run the Django project locally:
 5. **Access the Application**
 
     Open your browser and go to `http://127.0.0.1:8000/` to use the application.
+
+
+6. **To write the excel data to database**
+
+
+    python manage.py import_diseases test.xlsx
+
+    create a excel sheet on the root and run the above on terminal

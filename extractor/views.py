@@ -23,6 +23,7 @@ def upload_pdf(request):
 
                 encounter_data = extract_encounter_data(pdf_path)
                 request.session['encounter_data'] = encounter_data
+                
                
                 os.remove(pdf_path)
 

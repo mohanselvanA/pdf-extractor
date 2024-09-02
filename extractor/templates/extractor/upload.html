@@ -3,11 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upload PDF</title>
+    <title>Encounter Data</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f9f9f9;
+        }
+
+        .encounter-container {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .encounter-date {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .page-number {
+            font-size: 14px;
+            color: #777;
+        }
+
+        .diagnoses-list {
+            margin-top: 10px;
+            padding-left: 20px;
+        }
+
+        .diagnosis-item {
+            margin-bottom: 5px;
+            font-size: 16px;
+        }
+
+        .diagnosis-name {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .diagnosis-code {
+            font-size: 14px;
+            color: #555;
+        }
+    </style>
 </head>
 <body>
-    <h1>Upload PDF to Extract Encounter Data</h1>
 
+    <h1>Encounter Data</h1>
     {% if error %}
     <div class="alert alert-danger">
         {{ error }}
@@ -19,31 +66,28 @@
         {{ form.as_p }}
         <button type="submit">Upload</button>
     </form>
+    
 
-    {% if encounter_data %}
-        <h2>Extracted Data</h2>
-        <table border="1">
-            <thead>
-                <tr>
-                    <th>Encounter Date</th>
-                    <th>Page Number</th>
-                    <th>Disease Name</th>
-                    <th>Code</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for data in encounter_data %}
-                    {% for diagnosis in data.Diagnoses %}
-                        <tr>
-                            <td>{{ data.EncounterDate }}</td>
-                            <td>{{ data.Page }}</td>
-                            <td>{{ diagnosis.name }}</td>
-                            <td>{{ diagnosis.code }}</td>
-                        </tr>
-                    {% endfor %}
-                {% endfor %}
-            </tbody>
-        </table>
-    {% endif %}
+    <!-- Loop through encounter data -->
+    {% for encounter in  encounter_data %}
+    <div class="encounter-container">
+        <div class="encounter-date">Encounter Date: {{ encounter.EncounterDate }}</div>
+        <div class="page-number">Page: {{ encounter.Page }}</div>
+        <h1>Patient Active Problem List:</h1>
+        <div class="diagnoses-list">
+            <!-- Loop through diagnoses for each encounter -->
+            {% for diagnosis in encounter.Diagnoses %}
+          
+            <div class="diagnosis-item">
+                <span class="diagnosis-name">{{ diagnosis.name }}</span>
+                <span class="diagnosis-code">
+                    (Code: {{ diagnosis.code }})
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
 </body>
 </html>

@@ -1,134 +1,93 @@
 import re
-from pdfminer.high_level import extract_text
 from django.core.exceptions import ValidationError
+from pdfminer.high_level import extract_text
+from pdfminer.layout import LAParams
 from .models import Disease
 
-def extract_text_by_page(pdf_path):
-    try:
-        with open(pdf_path, 'rb') as f:
-            return extract_text(f).split("\f")
-    except Exception as e:
-        print(f"Error extracting text from PDF: {e}")
-        return []
+def extract_diagnosis_pdfminer(page_text, diagnosis_heading, next_heading, bullet_points):
+    past_medical_history_text = []
+    lines = page_text.split('\n')
+    found_heading_on_page = False
 
-
-# def extract_encounter_data(pdf_path):
-#     pages = extract_text_by_page(pdf_path)
-#     encounter_data = []
+    for line in lines:
+        if diagnosis_heading.search(line) and not found_heading_on_page:
+            found_heading_on_page = True
+            continue
+        elif next_heading.search(line):
+            found_heading_on_page = False
+            break
+        elif found_heading_on_page:
+            match = bullet_points.match(line)
+            if match:
+                past_medical_history_text.append(match.group(1))
     
-#     encounter_pattern = re.compile(r'Encounter Date\s*:\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3})', re.IGNORECASE)
-#     diagnosis_heading_pattern = re.compile(r'Diagnosis', re.IGNORECASE)
-#     bullet_point_pattern = re.compile(r'•\s*(.+)', re.IGNORECASE)
-   
-#     encounter_found = False
-#     diagnosis_found = False
-    
-#     encounter_pages = []
-#     for page_number, page_text in enumerate(pages, start=1):
-#         encounters = encounter_pattern.findall(page_text)
-#         if encounters:
-#             encounter_found = True
-#             for encounter in encounters:
-#                 encounter_pages.append((page_number, encounter))
-#         if diagnosis_heading_pattern.search(page_text):
-#             diagnosis_found = True
-           
-
-   
-#     if not encounter_found or not diagnosis_found:
-#         raise ValidationError("The PDF does not contain the required keys: 'Encounter Date' or 'Diagnosis'.")
-
-#     for page_number, encounter in encounter_pages:
-        
-#         diagnoses = []
-#         for p in range(page_number - 1, len(pages)):
-#             page_text = pages[p]
-#             heading_match = diagnosis_heading_pattern.search(page_text)
-#             if heading_match:
-#                 heading_index = heading_match.end()
-#                 relevant_text = page_text[heading_index:]
-#                 bullet_points = bullet_point_pattern.findall(relevant_text)
-#                 for bullet_point in bullet_points:
-#                     diagnoses.append(bullet_point.strip())
-#                 if diagnoses:
-#                     break
-        
-#         encounter_data.append({
-#             'Encounter_Date': encounter,
-#             'Page': page_number,
-#             'Diagnoses': diagnoses
-#         })
-
-#         print(encounter_data)
-        
-
-#     return encounter_data
-
-
+    return past_medical_history_text
 
 def extract_encounter_data(pdf_path):
-    
-    pages = extract_text_by_page(pdf_path)
+    pages = extract_text(pdf_path, laparams=LAParams()).split('\f')
     encounter_data = []
 
     encounter_pattern = re.compile(r'Encounter Date\s*:\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3})', re.IGNORECASE)
-    diagnosis_heading_pattern = re.compile(r'Diagnosis', re.IGNORECASE)
-    bullet_point_pattern = re.compile(r'•\s*(.+)', re.IGNORECASE)
+    diagnosis_heading = re.compile(r'Patient\s+Active\s+Problem\s+List', re.IGNORECASE)
+    bullet_points = re.compile(r'•\s*(.+)', re.IGNORECASE)
+    next_heading = re.compile(r'(Past Medical History:)', re.IGNORECASE)
 
     target_diseases = set(Disease.objects.values_list('name', flat=True))
-    
-    encounter_found = False
-    diagnosis_found = False
-
     encounter_pages = []
+    all_encounter_data = []
+    seen_encounters = set()
+
     for page_number, page_text in enumerate(pages, start=1):
         encounters = encounter_pattern.findall(page_text)
         if encounters:
-            encounter_found = True
             for encounter in encounters:
                 encounter_pages.append((page_number, encounter))
-        
-        if diagnosis_heading_pattern.search(page_text):
-            diagnosis_found = True
-
-    if not encounter_found or not diagnosis_found:
-        raise ValidationError("The PDF does not contain the required keys: 'Encounter Date' or 'Diagnosis'.")
 
     for page_number, encounter in encounter_pages:
+        if (encounter, page_number) in seen_encounters:
+            continue
         diagnoses = []
+        found_diagnosis = False
+
         for p in range(page_number - 1, len(pages)):
             page_text = pages[p]
-            heading_match = diagnosis_heading_pattern.search(page_text)
-            if heading_match:
-                heading_index = heading_match.end()
-                relevant_text = page_text[heading_index:]
-                bullet_points = bullet_point_pattern.findall(relevant_text)
-                
-                for bullet_point in bullet_points:
-                    disease_name = bullet_point.strip()
-                    
-                    try:
-                      
-                        if disease_name in target_diseases:
-                            disease = Disease.objects.get(name=disease_name)
+            
+            page_diagnoses = extract_diagnosis_pdfminer(page_text, diagnosis_heading, next_heading, bullet_points)
+            
+            if page_diagnoses:
+               
+                for diagnosis_text in page_diagnoses:
+                    diagnosis_text = diagnosis_text.strip()
+                    if diagnosis_text:
+                        if diagnosis_text in target_diseases:
+                            try:
+                                disease = Disease.objects.get(name__iexact=diagnosis_text)
+                                diagnoses.append({
+                                    'name': diagnosis_text,
+                                    'code': disease.code
+                                })
+                            except Disease.DoesNotExist:
+                                diagnoses.append({
+                                    'name': diagnosis_text,
+                                    'code': 'Not found'
+                                })
+                        else:
                             diagnoses.append({
-                                'name': disease_name,
-                                'code': disease.code
+                                'name': diagnosis_text,
+                                'code': 'Not found'
                             })
-                    except Disease.DoesNotExist:
-                       
-                        diagnoses.append({
-                            'name': disease_name,
-                            'code': 'Not found'
-                        })
-                break 
-        
-        
-        if diagnoses:
-            encounter_data.append({
+
+            if p != page_number - 1 and (encounter_pattern.search(page_text) or next_heading.search(page_text)):
+                break
+
+        if page_diagnoses:
+            all_encounter_data.append({
                 'EncounterDate': encounter,
                 'Page': page_number,
                 'Diagnoses': diagnoses
             })
-    
-    return encounter_data
+            seen_encounters.add((encounter, page_number))
+
+    all_encounter_data = [entry for entry in all_encounter_data if entry['Diagnoses']]
+
+    return all_encounter_data
